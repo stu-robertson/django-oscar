@@ -1,0 +1,30 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+django-debug-toolbar = "<4.5,>=2.2"
+django-extensions = "<3.3,>=2.2"
+psycopg2-binary = "<2.10,>=2.8"
+whoosh = "<2.8,>=2.7"
+django-environ = "<0.12,>=0.4"
+django-redis = "<5.4,>=4.12"
+pysolr = "<3.10,>=3.9"
+redis = "<5.3,>=3.5"
+requests = "<3,>=2.25"
+whitenoise = "<6.9,>=6.7.0"
+pylint = ">=3.2.4"
+pylint-django = ">=2.5.5"
+black = ">=24.4.2"
+pyprof2calltree = "<1.5,>=1.4"
+ipdb = "<0.14,>=0.13"
+ipython = "<9,>=7.12"
+pycountry = "*"
+django-oscar-api = "*"
+graphene-django = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
