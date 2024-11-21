@@ -23,12 +23,50 @@ class ProductClassType(DjangoObjectType):
 
 
 class CategoryType(DjangoObjectType):
+    full_slug = graphene.String()
+    public_children = graphene.List(lambda: CategoryType)
+    has_children = graphene.Boolean()
+
     class Meta:
         model = Category
-        fields = ("id", "name", "description", "slug", "is_public", "full_name")
+        fields = (
+            "id",
+            "name",
+            "code", 
+            "description",
+            "slug",
+            "is_public",
+            "full_name",
+            "meta_title",
+            "meta_description",
+            "image",
+        )
+
+    def resolve_full_slug(self, info):
+        return self.full_slug
+
+    def resolve_public_children(self, info):
+        # Use get_children() and filter manually for public categories
+        return self.get_children().filter(is_public=True)
+
+    def resolve_has_children(self, info):
+        return self.get_num_children() > 0
+
+
 
 
 class ProductType(DjangoObjectType):
+    is_standalone = graphene.Boolean()
+    is_parent = graphene.Boolean()
+    is_child = graphene.Boolean()
+    parent = graphene.Field(lambda: ProductType)
+    children = graphene.List(lambda: ProductType)
+    primary_image = graphene.String()
+    rating = graphene.Float()
+    attribute_summary = graphene.String()
+    recommended_products = graphene.List(lambda: ProductType)
+    categories = graphene.List(CategoryType)
+
     class Meta:
         model = Product
         fields = (
@@ -41,12 +79,47 @@ class ProductType(DjangoObjectType):
             "date_created",
             "date_updated",
             "is_discountable",
+            "upc",
+            "structure",  # Include the structure field
         )
 
-    categories = graphene.List(CategoryType)
+    def resolve_is_standalone(self, info):
+        return self.is_standalone
+
+    def resolve_is_parent(self, info):
+        return self.is_parent
+
+    def resolve_is_child(self, info):
+        return self.is_child
+
+    def resolve_parent(self, info):
+        if self.is_child:
+            return self.parent
+        return None
+
+    def resolve_children(self, info):
+        if self.is_parent:
+            return self.children.filter(is_public=True)
+        return []
+
+    def resolve_primary_image(self, info):
+        image = self.primary_image()
+        if isinstance(image, dict):  # Handle missing images
+            return image["original"]
+        return image.original.url if image else None
+
+    def resolve_rating(self, info):
+        return self.rating
+
+    def resolve_attribute_summary(self, info):
+        return self.attribute_summary
+
+    def resolve_recommended_products(self, info):
+        return self.recommended_products.all()
 
     def resolve_categories(self, info):
         return self.categories.all()
+
 
 
 class ProductCategoryType(DjangoObjectType):
