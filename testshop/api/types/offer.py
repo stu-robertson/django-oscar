@@ -70,7 +70,7 @@ class RangeType(DjangoObjectType):
             "name",
             "description",
             "is_public",
-            "includes_all_products",
+            "includes_products",
             "date_created",
         )
 
@@ -88,46 +88,46 @@ class RangeProductType(DjangoObjectType):
 
 # Queries
 class OfferQuery(graphene.ObjectType):
-    all_offers = graphene.List(ConditionalOfferType)
-    offer_by_id = graphene.Field(ConditionalOfferType, id=graphene.ID(required=True))
-    all_benefits = graphene.List(BenefitType)
-    benefit_by_id = graphene.Field(BenefitType, id=graphene.ID(required=True))
-    all_conditions = graphene.List(ConditionType)
-    condition_by_id = graphene.Field(ConditionType, id=graphene.ID(required=True))
-    all_ranges = graphene.List(RangeType)
-    range_by_id = graphene.Field(RangeType, id=graphene.ID(required=True))
+    offers = graphene.List(ConditionalOfferType)
+    offer = graphene.Field(ConditionalOfferType, id=graphene.ID(required=True))
+    benefits = graphene.List(BenefitType)
+    benefit = graphene.Field(BenefitType, id=graphene.ID(required=True))
+    conditions = graphene.List(ConditionType)
+    condition = graphene.Field(ConditionType, id=graphene.ID(required=True))
+    ranges = graphene.List(RangeType)
+    range = graphene.Field(RangeType, id=graphene.ID(required=True))
 
-    def resolve_all_offers(self, info):
+    def resolve_offers(self, info):
         return ConditionalOffer.objects.all()
 
-    def resolve_offer_by_id(self, info, id):
+    def resolve_offer(self, info, id):
         try:
             return ConditionalOffer.objects.get(id=id)
         except ConditionalOffer.DoesNotExist:
             return None
 
-    def resolve_all_benefits(self, info):
+    def resolve_benefits(self, info):
         return Benefit.objects.all()
 
-    def resolve_benefit_by_id(self, info, id):
+    def resolve_benefit(self, info, id):
         try:
             return Benefit.objects.get(id=id)
         except Benefit.DoesNotExist:
             return None
 
-    def resolve_all_conditions(self, info):
+    def resolve_conditions(self, info):
         return Condition.objects.all()
 
-    def resolve_condition_by_id(self, info, id):
+    def resolve_condition(self, info, id):
         try:
             return Condition.objects.get(id=id)
         except Condition.DoesNotExist:
             return None
 
-    def resolve_all_ranges(self, info):
+    def resolve_ranges(self, info):
         return Range.objects.all()
 
-    def resolve_range_by_id(self, info, id):
+    def resolve_range(self, info, id):
         try:
             return Range.objects.get(id=id)
         except Range.DoesNotExist:

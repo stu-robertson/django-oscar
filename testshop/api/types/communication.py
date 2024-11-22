@@ -48,39 +48,39 @@ class NotificationType(DjangoObjectType):
 
 # Queries
 class CommunicationQuery(graphene.ObjectType):
-    all_emails = graphene.List(EmailType)
-    email_by_id = graphene.Field(EmailType, id=graphene.ID(required=True))
-    all_communication_event_types = graphene.List(CommunicationEventTypeType)
-    communication_event_type_by_id = graphene.Field(
+    emails = graphene.List(EmailType)
+    email = graphene.Field(EmailType, id=graphene.ID(required=True))
+    communication_event_types = graphene.List(CommunicationEventTypeType)
+    communication_event_type = graphene.Field(
         CommunicationEventTypeType, id=graphene.ID(required=True)
     )
-    all_notifications = graphene.List(NotificationType, recipient_id=graphene.ID())
-    notification_by_id = graphene.Field(NotificationType, id=graphene.ID(required=True))
+    notifications = graphene.List(NotificationType, recipient_id=graphene.ID())
+    notification = graphene.Field(NotificationType, id=graphene.ID(required=True))
 
-    def resolve_all_emails(self, info):
+    def resolve_emails(self, info):
         return Email.objects.all()
 
-    def resolve_email_by_id(self, info, id):
+    def resolve_email(self, info, id):
         try:
             return Email.objects.get(id=id)
         except Email.DoesNotExist:
             return None
 
-    def resolve_all_communication_event_types(self, info):
+    def resolve_communication_event_types(self, info):
         return CommunicationEventType.objects.all()
 
-    def resolve_communication_event_type_by_id(self, info, id):
+    def resolve_communication_event_type(self, info, id):
         try:
             return CommunicationEventType.objects.get(id=id)
         except CommunicationEventType.DoesNotExist:
             return None
 
-    def resolve_all_notifications(self, info, recipient_id=None):
+    def resolve_notifications(self, info, recipient_id=None):
         if recipient_id:
             return Notification.objects.filter(recipient_id=recipient_id)
         return Notification.objects.all()
 
-    def resolve_notification_by_id(self, info, id):
+    def resolve_notification(self, info, id):
         try:
             return Notification.objects.get(id=id)
         except Notification.DoesNotExist:

@@ -56,27 +56,27 @@ class UserSearchType(DjangoObjectType):
 
 # Queries for Analytics
 class AnalyticsQuery(graphene.ObjectType):
-    all_product_records = graphene.List(ProductRecordType)
-    all_user_records = graphene.List(UserRecordType)
-    all_user_product_views = graphene.List(UserProductViewType)
-    all_user_searches = graphene.List(UserSearchType)
+    product_records = graphene.List(ProductRecordType)
+    user_records = graphene.List(UserRecordType)
+    user_product_views = graphene.List(UserProductViewType)
+    user_searches = graphene.List(UserSearchType)
 
     product_record = graphene.Field(ProductRecordType, product_id=graphene.ID(required=True))
     user_record = graphene.Field(UserRecordType, user_id=graphene.ID(required=True))
 
-    def resolve_all_product_records(self, info):
+    def resolve_product_records(self, info):
         return ProductRecord.objects.all()
 
-    def resolve_all_user_records(self, info):
+    def resolve_user_records(self, info):
         return UserRecord.objects.all()
 
-    def resolve_all_user_product_views(self, info):
+    def resolve_user_product_views(self, info):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view user product views.")
         return UserProductView.objects.filter(user=user)
 
-    def resolve_all_user_searches(self, info):
+    def resolve_user_searches(self, info):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view user searches.")

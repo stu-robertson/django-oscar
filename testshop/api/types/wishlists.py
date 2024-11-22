@@ -36,11 +36,11 @@ class WishListSharedEmailType(DjangoObjectType):
 
 # Queries
 class WishListQuery(graphene.ObjectType):
-    all_wishlists = graphene.List(WishListType)
+    wishlists = graphene.List(WishListType)
     wishlist_by_key = graphene.Field(WishListType, key=graphene.String(required=True))
     wishlist_lines = graphene.List(LineType, wishlist_id=graphene.ID(required=True))
 
-    def resolve_all_wishlists(self, info):
+    def resolve_wishlists(self, info):
         user = info.context.user
         if user.is_authenticated:
             return WishList.objects.filter(owner=user)

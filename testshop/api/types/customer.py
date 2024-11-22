@@ -41,30 +41,30 @@ class ProductAlertType(DjangoObjectType):
 
 # Queries
 class CustomerQuery(graphene.ObjectType):
-    all_users = graphene.List(UserType)
-    user_by_id = graphene.Field(UserType, id=graphene.ID(required=True))
-    all_product_alerts = graphene.List(ProductAlertType)
+    users = graphene.List(UserType)
+    user = graphene.Field(UserType, id=graphene.ID(required=True))
+    product_alerts = graphene.List(ProductAlertType)
     product_alerts_by_user = graphene.List(
         ProductAlertType, user_id=graphene.ID(required=True)
     )
-    product_alert_by_id = graphene.Field(ProductAlertType, id=graphene.ID(required=True))
+    product_alert = graphene.Field(ProductAlertType, id=graphene.ID(required=True))
 
-    def resolve_all_users(self, info):
+    def resolve_users(self, info):
         return User.objects.all()
 
-    def resolve_user_by_id(self, info, id):
+    def resolve_user(self, info, id):
         try:
             return User.objects.get(id=id)
         except User.DoesNotExist:
             return None
 
-    def resolve_all_product_alerts(self, info):
+    def resolve_product_alerts(self, info):
         return ProductAlert.objects.all()
 
     def resolve_product_alerts_by_user(self, info, user_id):
         return ProductAlert.objects.filter(user_id=user_id)
 
-    def resolve_product_alert_by_id(self, info, id):
+    def resolve_product_alert(self, info, id):
         try:
             return ProductAlert.objects.get(id=id)
         except ProductAlert.DoesNotExist:

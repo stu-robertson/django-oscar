@@ -63,49 +63,49 @@ class BankcardType(DjangoObjectType):
 
 # Queries
 class PaymentQuery(graphene.ObjectType):
-    all_transactions = graphene.List(TransactionType)
-    transaction_by_id = graphene.Field(TransactionType, id=graphene.ID(required=True))
+    transactions = graphene.List(TransactionType)
+    transaction = graphene.Field(TransactionType, id=graphene.ID(required=True))
 
-    all_sources = graphene.List(SourceType)
-    source_by_id = graphene.Field(SourceType, id=graphene.ID(required=True))
+    sources = graphene.List(SourceType)
+    source = graphene.Field(SourceType, id=graphene.ID(required=True))
 
-    all_source_types = graphene.List(SourceTypeType)
-    source_type_by_id = graphene.Field(SourceTypeType, id=graphene.ID(required=True))
+    source_types = graphene.List(SourceTypeType)
+    source_type = graphene.Field(SourceTypeType, id=graphene.ID(required=True))
 
-    all_bankcards = graphene.List(BankcardType)
-    bankcard_by_id = graphene.Field(BankcardType, id=graphene.ID(required=True))
+    bankcards = graphene.List(BankcardType)
+    bankcard = graphene.Field(BankcardType, id=graphene.ID(required=True))
 
-    def resolve_all_transactions(self, info):
+    def resolve_transactions(self, info):
         return Transaction.objects.all()
 
-    def resolve_transaction_by_id(self, info, id):
+    def resolve_transaction(self, info, id):
         try:
             return Transaction.objects.get(id=id)
         except Transaction.DoesNotExist:
             return None
 
-    def resolve_all_sources(self, info):
+    def resolve_sources(self, info):
         return Source.objects.all()
 
-    def resolve_source_by_id(self, info, id):
+    def resolve_source(self, info, id):
         try:
             return Source.objects.get(id=id)
         except Source.DoesNotExist:
             return None
 
-    def resolve_all_source_types(self, info):
+    def resolve_source_types(self, info):
         return SourceType.objects.all()
 
-    def resolve_source_type_by_id(self, info, id):
+    def resolve_source_type(self, info, id):
         try:
             return SourceType.objects.get(id=id)
         except SourceType.DoesNotExist:
             return None
 
-    def resolve_all_bankcards(self, info):
+    def resolve_bankcards(self, info):
         return Bankcard.objects.all()
 
-    def resolve_bankcard_by_id(self, info, id):
+    def resolve_bankcard(self, info, id):
         try:
             return Bankcard.objects.get(id=id)
         except Bankcard.DoesNotExist:

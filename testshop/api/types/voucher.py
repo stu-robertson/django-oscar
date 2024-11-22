@@ -48,27 +48,27 @@ class VoucherApplicationType(DjangoObjectType):
 
 # Queries
 class VoucherQuery(graphene.ObjectType):
-    all_voucher_sets = graphene.List(VoucherSetType)
-    voucher_set_by_id = graphene.Field(VoucherSetType, id=graphene.ID(required=True))
+    voucher_sets = graphene.List(VoucherSetType)
+    voucher_set = graphene.Field(VoucherSetType, id=graphene.ID(required=True))
 
-    all_vouchers = graphene.List(VoucherType)
+    vouchers = graphene.List(VoucherType)
     voucher_by_code = graphene.Field(VoucherType, code=graphene.String(required=True))
 
-    all_voucher_applications = graphene.List(VoucherApplicationType)
+    voucher_applications = graphene.List(VoucherApplicationType)
     voucher_applications_by_voucher = graphene.List(
         VoucherApplicationType, voucher_id=graphene.ID(required=True)
     )
 
-    def resolve_all_voucher_sets(self, info):
+    def resolve_voucher_sets(self, info):
         return VoucherSet.objects.all()
 
-    def resolve_voucher_set_by_id(self, info, id):
+    def resolve_voucher_set(self, info, id):
         try:
             return VoucherSet.objects.get(id=id)
         except VoucherSet.DoesNotExist:
             return None
 
-    def resolve_all_vouchers(self, info):
+    def resolve_vouchers(self, info):
         return Voucher.objects.all()
 
     def resolve_voucher_by_code(self, info, code):
@@ -77,7 +77,7 @@ class VoucherQuery(graphene.ObjectType):
         except Voucher.DoesNotExist:
             return None
 
-    def resolve_all_voucher_applications(self, info):
+    def resolve_voucher_applications(self, info):
         return VoucherApplication.objects.all()
 
     def resolve_voucher_applications_by_voucher(self, info, voucher_id):

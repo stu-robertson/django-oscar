@@ -88,12 +88,12 @@ class BasketType(DjangoObjectType):
 
 # Queries for Basket
 class BasketQuery(graphene.ObjectType):
-    all_baskets = graphene.List(BasketType)
+    baskets = graphene.List(BasketType)
     basket = graphene.Field(BasketType, id=graphene.ID(required=True))
-    all_lines = graphene.List(LineType)
+    lines = graphene.List(LineType)
     line = graphene.Field(LineType, id=graphene.ID(required=True))
 
-    def resolve_all_baskets(self, info):
+    def resolve_baskets(self, info):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view baskets.")
@@ -108,7 +108,7 @@ class BasketQuery(graphene.ObjectType):
         except Basket.DoesNotExist:
             raise Exception("Basket not found.")
 
-    def resolve_all_lines(self, info):
+    def resolve_lines(self, info):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view basket lines.")

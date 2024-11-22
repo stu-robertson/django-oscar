@@ -50,13 +50,13 @@ class WeightBandType(DjangoObjectType):
 
 # Queries
 class ShippingQuery(graphene.ObjectType):
-    all_order_and_item_charges = graphene.List(OrderAndItemChargesType)
-    order_and_item_charge_by_id = graphene.Field(
+    order_and_item_charges = graphene.List(OrderAndItemChargesType)
+    order_and_item_charge = graphene.Field(
         OrderAndItemChargesType, id=graphene.ID(required=True)
     )
 
-    all_weight_based_methods = graphene.List(WeightBasedType)
-    weight_based_method_by_id = graphene.Field(
+    weight_based_methods = graphene.List(WeightBasedType)
+    weight_based_method = graphene.Field(
         WeightBasedType, id=graphene.ID(required=True)
     )
 
@@ -64,19 +64,19 @@ class ShippingQuery(graphene.ObjectType):
         WeightBandType, method_id=graphene.ID(required=True)
     )
 
-    def resolve_all_order_and_item_charges(self, info):
+    def resolve_order_and_item_charges(self, info):
         return OrderAndItemCharges.objects.all()
 
-    def resolve_order_and_item_charge_by_id(self, info, id):
+    def resolve_order_and_item_charge(self, info, id):
         try:
             return OrderAndItemCharges.objects.get(id=id)
         except OrderAndItemCharges.DoesNotExist:
             return None
 
-    def resolve_all_weight_based_methods(self, info):
+    def resolve_weight_based_methods(self, info):
         return WeightBased.objects.all()
 
-    def resolve_weight_based_method_by_id(self, info, id):
+    def resolve_weight_based_method(self, info, id):
         try:
             return WeightBased.objects.get(id=id)
         except WeightBased.DoesNotExist:

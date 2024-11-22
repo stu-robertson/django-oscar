@@ -117,43 +117,43 @@ class SurchargeType(DjangoObjectType):
 
 # Queries
 class OrderQuery(graphene.ObjectType):
-    all_orders = graphene.List(OrderType)
-    order_by_id = graphene.Field(OrderType, id=graphene.ID(required=True))
-    all_order_lines = graphene.List(LineType)
-    line_by_id = graphene.Field(LineType, id=graphene.ID(required=True))
-    all_shipping_addresses = graphene.List(ShippingAddressType)
-    all_billing_addresses = graphene.List(BillingAddressType)
-    all_order_notes = graphene.List(OrderNoteType)
-    all_discounts = graphene.List(OrderDiscountType)
+    orders = graphene.List(OrderType)
+    order = graphene.Field(OrderType, id=graphene.ID(required=True))
+    order_lines = graphene.List(LineType)
+    line = graphene.Field(LineType, id=graphene.ID(required=True))
+    shipping_addresses = graphene.List(ShippingAddressType)
+    billing_addresses = graphene.List(BillingAddressType)
+    order_notes = graphene.List(OrderNoteType)
+    discounts = graphene.List(OrderDiscountType)
 
-    def resolve_all_orders(self, info):
+    def resolve_orders(self, info):
         return Order.objects.all()
 
-    def resolve_order_by_id(self, info, id):
+    def resolve_order(self, info, id):
         try:
             return Order.objects.get(id=id)
         except Order.DoesNotExist:
             return None
 
-    def resolve_all_order_lines(self, info):
+    def resolve_order_lines(self, info):
         return Line.objects.all()
 
-    def resolve_line_by_id(self, info, id):
+    def resolve_line(self, info, id):
         try:
             return Line.objects.get(id=id)
         except Line.DoesNotExist:
             return None
 
-    def resolve_all_shipping_addresses(self, info):
+    def resolve_shipping_addresses(self, info):
         return ShippingAddress.objects.all()
 
-    def resolve_all_billing_addresses(self, info):
+    def resolve_billing_addresses(self, info):
         return BillingAddress.objects.all()
 
-    def resolve_all_order_notes(self, info):
+    def resolve_order_notes(self, info):
         return OrderNote.objects.all()
 
-    def resolve_all_discounts(self, info):
+    def resolve_discounts(self, info):
         return OrderDiscount.objects.all()
 
 # Mutations for Order

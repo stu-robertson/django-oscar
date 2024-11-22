@@ -54,14 +54,14 @@ class UserAddressType(DjangoObjectType):
 
 # GraphQL Query for Addresses
 class AddressQuery(graphene.ObjectType):
-    all_countries = graphene.List(CountryType)
-    all_user_addresses = graphene.List(UserAddressType)
+    countries = graphene.List(CountryType)
+    user_addresses = graphene.List(UserAddressType)
     user_address = graphene.Field(UserAddressType, id=graphene.ID(required=True))
 
-    def resolve_all_countries(self, info):
+    def resolve_countries(self, info):
         return Country.objects.all()
 
-    def resolve_all_user_addresses(self, info):
+    def resolve_user_addresses(self, info):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view addresses.")

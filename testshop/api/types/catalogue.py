@@ -172,25 +172,25 @@ class ProductImageType(DjangoObjectType):
 
 # Queries
 class CatalogueQuery(graphene.ObjectType):
-    all_products = graphene.List(ProductType)
-    product_by_id = graphene.Field(ProductType, id=graphene.ID(required=True))
-    all_categories = graphene.List(CategoryType)
-    category_by_id = graphene.Field(CategoryType, id=graphene.ID(required=True))
+    products = graphene.List(ProductType)
+    product = graphene.Field(ProductType, id=graphene.ID(required=True))
+    categories = graphene.List(CategoryType)
+    category = graphene.Field(CategoryType, id=graphene.ID(required=True))
     product_classes = graphene.List(ProductClassType)
 
-    def resolve_all_products(self, info):
+    def resolve_products(self, info):
         return Product.objects.filter(is_public=True)
 
-    def resolve_product_by_id(self, info, id):
+    def resolve_product(self, info, id):
         try:
             return Product.objects.get(id=id, is_public=True)
         except Product.DoesNotExist:
             return None
 
-    def resolve_all_categories(self, info):
+    def resolve_categories(self, info):
         return Category.objects.filter(is_public=True)
 
-    def resolve_category_by_id(self, info, id):
+    def resolve_category(self, info, id):
         try:
             return Category.objects.get(id=id, is_public=True)
         except Category.DoesNotExist:

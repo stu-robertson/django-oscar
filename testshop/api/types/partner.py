@@ -50,35 +50,35 @@ class StockAlertType(DjangoObjectType):
 
 # Queries
 class PartnerQuery(graphene.ObjectType):
-    all_partners = graphene.List(PartnerType)
-    partner_by_id = graphene.Field(PartnerType, id=graphene.ID(required=True))
-    all_stock_records = graphene.List(StockRecordType)
-    stock_record_by_id = graphene.Field(StockRecordType, id=graphene.ID(required=True))
-    all_stock_alerts = graphene.List(StockAlertType)
-    stock_alert_by_id = graphene.Field(StockAlertType, id=graphene.ID(required=True))
+    partners = graphene.List(PartnerType)
+    partner = graphene.Field(PartnerType, id=graphene.ID(required=True))
+    stock_records = graphene.List(StockRecordType)
+    stock_record = graphene.Field(StockRecordType, id=graphene.ID(required=True))
+    stock_alerts = graphene.List(StockAlertType)
+    stock_alert = graphene.Field(StockAlertType, id=graphene.ID(required=True))
 
-    def resolve_all_partners(self, info):
+    def resolve_partners(self, info):
         return Partner.objects.all()
 
-    def resolve_partner_by_id(self, info, id):
+    def resolve_partner(self, info, id):
         try:
             return Partner.objects.get(id=id)
         except Partner.DoesNotExist:
             return None
 
-    def resolve_all_stock_records(self, info):
+    def resolve_stock_records(self, info):
         return StockRecord.objects.all()
 
-    def resolve_stock_record_by_id(self, info, id):
+    def resolve_stock_record(self, info, id):
         try:
             return StockRecord.objects.get(id=id)
         except StockRecord.DoesNotExist:
             return None
 
-    def resolve_all_stock_alerts(self, info):
+    def resolve_stock_alerts(self, info):
         return StockAlert.objects.all()
 
-    def resolve_stock_alert_by_id(self, info, id):
+    def resolve_stock_alert(self, info, id):
         try:
             return StockAlert.objects.get(id=id)
         except StockAlert.DoesNotExist:
