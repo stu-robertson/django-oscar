@@ -1,7 +1,12 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.voucher.models import VoucherSet, Voucher, VoucherApplication
 from oscar.apps.order.models import Order
+from django.contrib.auth import get_user_model
+
+# Get the user model
+AUTH_USER_MODEL = get_user_model()
 
 
 # GraphQL Types
@@ -20,6 +25,12 @@ class VoucherSetType(DjangoObjectType):
             "num_orders",
             "total_discount",
         )
+        interfaces = (relay.Node,)
+
+
+class VoucherSetConnection(relay.Connection):
+    class Meta:
+        node = VoucherSetType
 
 
 class VoucherType(DjangoObjectType):
@@ -38,37 +49,43 @@ class VoucherType(DjangoObjectType):
             "total_discount",
             "voucher_set",
         )
+        interfaces = (relay.Node,)
+
+
+class VoucherConnection(relay.Connection):
+    class Meta:
+        node = VoucherType
 
 
 class VoucherApplicationType(DjangoObjectType):
     class Meta:
         model = VoucherApplication
         fields = ("id", "voucher", "user", "order", "date_created")
+        interfaces = (relay.Node,)
+
+
+class VoucherApplicationConnection(relay.Connection):
+    class Meta:
+        node = VoucherApplicationType
 
 
 # Queries
 class VoucherQuery(graphene.ObjectType):
-    voucher_sets = graphene.List(VoucherSetType)
-    voucher_set = graphene.Field(VoucherSetType, id=graphene.ID(required=True))
+    voucher_sets = relay.ConnectionField(VoucherSetConnection)
+    voucher_set = relay.Node.Field(VoucherSetType)
 
-    vouchers = graphene.List(VoucherType)
+    vouchers = relay.ConnectionField(VoucherConnection)
     voucher_by_code = graphene.Field(VoucherType, code=graphene.String(required=True))
 
-    voucher_applications = graphene.List(VoucherApplicationType)
-    voucher_applications_by_voucher = graphene.List(
-        VoucherApplicationType, voucher_id=graphene.ID(required=True)
+    voucher_applications = relay.ConnectionField(VoucherApplicationConnection)
+    voucher_applications_by_voucher = relay.ConnectionField(
+        VoucherApplicationConnection, voucher_id=graphene.ID(required=True)
     )
 
-    def resolve_voucher_sets(self, info):
+    def resolve_voucher_sets(self, info, **kwargs):
         return VoucherSet.objects.all()
 
-    def resolve_voucher_set(self, info, id):
-        try:
-            return VoucherSet.objects.get(id=id)
-        except VoucherSet.DoesNotExist:
-            return None
-
-    def resolve_vouchers(self, info):
+    def resolve_vouchers(self, info, **kwargs):
         return Voucher.objects.all()
 
     def resolve_voucher_by_code(self, info, code):
@@ -77,48 +94,50 @@ class VoucherQuery(graphene.ObjectType):
         except Voucher.DoesNotExist:
             return None
 
-    def resolve_voucher_applications(self, info):
+    def resolve_voucher_applications(self, info, **kwargs):
         return VoucherApplication.objects.all()
 
-    def resolve_voucher_applications_by_voucher(self, info, voucher_id):
-        try:
-            return VoucherApplication.objects.filter(voucher_id=voucher_id)
-        except VoucherApplication.DoesNotExist:
-            return None
+    def resolve_voucher_applications_by_voucher(self, info, voucher_id, **kwargs):
+        return VoucherApplication.objects.filter(voucher_id=voucher_id)
 
 
 # Mutations
-class CreateVoucherApplication(graphene.Mutation):
-    class Arguments:
+class CreateVoucherApplicationMutation(relay.ClientIDMutation):
+    class Input:
         voucher_id = graphene.ID(required=True)
         order_id = graphene.ID(required=True)
         user_id = graphene.ID()
 
     success = graphene.Boolean()
 
-    def mutate(self, info, voucher_id, order_id, user_id=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, voucher_id, order_id, user_id=None):
         try:
             voucher = Voucher.objects.get(id=voucher_id)
             order = Order.objects.get(id=order_id)
             user = None if user_id is None else AUTH_USER_MODEL.objects.get(id=user_id)
 
             VoucherApplication.objects.create(voucher=voucher, order=order, user=user)
-            return CreateVoucherApplication(success=True)
+            return CreateVoucherApplicationMutation(success=True)
         except (Voucher.DoesNotExist, Order.DoesNotExist, AUTH_USER_MODEL.DoesNotExist):
-            return CreateVoucherApplication(success=False)
+            return CreateVoucherApplicationMutation(success=False)
 
-class CreateVoucher(graphene.Mutation):
-    class Arguments:
+
+class CreateVoucherMutation(relay.ClientIDMutation):
+    class Input:
         name = graphene.String(required=True)
         code = graphene.String(required=True)
-        usage = graphene.String(required=True)  # SINGLE_USE, MULTI_USE, or ONCE_PER_CUSTOMER
+        usage = graphene.String(required=True)  # SINGLE_USE, MULTI_USE, ONCE_PER_CUSTOMER
         start_datetime = graphene.DateTime(required=True)
         end_datetime = graphene.DateTime(required=True)
-        voucher_set_id = graphene.ID(required=False)
+        voucher_set_id = graphene.ID()
 
     voucher = graphene.Field(VoucherType)
 
-    def mutate(self, info, name, code, usage, start_datetime, end_datetime, voucher_set_id=None):
+    @classmethod
+    def mutate_and_get_payload(
+        cls, root, info, name, code, usage, start_datetime, end_datetime, voucher_set_id=None
+    ):
         try:
             voucher_set = None
             if voucher_set_id:
@@ -131,13 +150,13 @@ class CreateVoucher(graphene.Mutation):
                 end_datetime=end_datetime,
                 voucher_set=voucher_set,
             )
-            return CreateVoucher(voucher=voucher)
+            return CreateVoucherMutation(voucher=voucher)
         except VoucherSet.DoesNotExist:
             raise Exception("Voucher Set not found")
 
 
-class UpdateVoucher(graphene.Mutation):
-    class Arguments:
+class UpdateVoucherMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
         name = graphene.String()
         code = graphene.String()
@@ -147,7 +166,10 @@ class UpdateVoucher(graphene.Mutation):
 
     voucher = graphene.Field(VoucherType)
 
-    def mutate(self, info, id, name=None, code=None, usage=None, start_datetime=None, end_datetime=None):
+    @classmethod
+    def mutate_and_get_payload(
+        cls, root, info, id, name=None, code=None, usage=None, start_datetime=None, end_datetime=None
+    ):
         try:
             voucher = Voucher.objects.get(id=id)
             if name:
@@ -161,32 +183,33 @@ class UpdateVoucher(graphene.Mutation):
             if end_datetime:
                 voucher.end_datetime = end_datetime
             voucher.save()
-            return UpdateVoucher(voucher=voucher)
+            return UpdateVoucherMutation(voucher=voucher)
         except Voucher.DoesNotExist:
             raise Exception("Voucher not found")
 
 
-class DeleteVoucher(graphene.Mutation):
-    class Arguments:
+class DeleteVoucherMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         try:
             voucher = Voucher.objects.get(id=id)
             voucher.delete()
-            return DeleteVoucher(success=True)
+            return DeleteVoucherMutation(success=True)
         except Voucher.DoesNotExist:
-            return DeleteVoucher(success=False)
+            return DeleteVoucherMutation(success=False)
 
 
 # Mutations
 class VoucherMutation(graphene.ObjectType):
-    create_voucher_application = CreateVoucherApplication.Field()
-    create_voucher = CreateVoucher.Field()
-    update_voucher = UpdateVoucher.Field()
-    delete_voucher = DeleteVoucher.Field()
+    create_voucher_application = CreateVoucherApplicationMutation.Field()
+    create_voucher = CreateVoucherMutation.Field()
+    update_voucher = UpdateVoucherMutation.Field()
+    delete_voucher = DeleteVoucherMutation.Field()
 
 
 # Schema

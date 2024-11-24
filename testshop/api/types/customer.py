@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.customer.models import ProductAlert
@@ -20,6 +21,12 @@ class UserType(DjangoObjectType):
             "is_staff",
             "date_joined",
         )
+        interfaces = (relay.Node,)
+
+
+class UserConnection(relay.Connection):
+    class Meta:
+        node = UserType
 
 
 class ProductAlertType(DjangoObjectType):
@@ -37,42 +44,35 @@ class ProductAlertType(DjangoObjectType):
             "date_cancelled",
             "date_closed",
         )
+        interfaces = (relay.Node,)
+
+
+class ProductAlertConnection(relay.Connection):
+    class Meta:
+        node = ProductAlertType
 
 
 # Queries
 class CustomerQuery(graphene.ObjectType):
-    users = graphene.List(UserType)
-    user = graphene.Field(UserType, id=graphene.ID(required=True))
-    product_alerts = graphene.List(ProductAlertType)
-    product_alerts_by_user = graphene.List(
-        ProductAlertType, user_id=graphene.ID(required=True)
-    )
-    product_alert = graphene.Field(ProductAlertType, id=graphene.ID(required=True))
+    users = relay.ConnectionField(UserConnection)
+    user = relay.Node.Field(UserType)
+    product_alerts = relay.ConnectionField(ProductAlertConnection)
+    product_alerts_by_user = relay.ConnectionField(ProductAlertConnection, user_id=graphene.ID(required=True))
+    product_alert = relay.Node.Field(ProductAlertType)
 
-    def resolve_users(self, info):
+    def resolve_users(self, info, **kwargs):
         return User.objects.all()
 
-    def resolve_user(self, info, id):
-        try:
-            return User.objects.get(id=id)
-        except User.DoesNotExist:
-            return None
-
-    def resolve_product_alerts(self, info):
+    def resolve_product_alerts(self, info, **kwargs):
         return ProductAlert.objects.all()
 
-    def resolve_product_alerts_by_user(self, info, user_id):
+    def resolve_product_alerts_by_user(self, info, user_id, **kwargs):
         return ProductAlert.objects.filter(user_id=user_id)
 
-    def resolve_product_alert(self, info, id):
-        try:
-            return ProductAlert.objects.get(id=id)
-        except ProductAlert.DoesNotExist:
-            return None
 
 # Mutations for Customer
-class CreateUserMutation(graphene.Mutation):
-    class Arguments:
+class CreateUserMutation(relay.ClientIDMutation):
+    class Input:
         email = graphene.String(required=True)
         first_name = graphene.String(required=True)
         last_name = graphene.String(required=True)
@@ -80,22 +80,24 @@ class CreateUserMutation(graphene.Mutation):
 
     user = graphene.Field(UserType)
 
-    def mutate(self, info, email, first_name, last_name, password):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, email, first_name, last_name, password):
         user = User.objects.create_user(
             email=email, first_name=first_name, last_name=last_name, password=password
         )
         return CreateUserMutation(user=user)
 
 
-class UpdateUserMutation(graphene.Mutation):
-    class Arguments:
+class UpdateUserMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
         first_name = graphene.String()
         last_name = graphene.String()
 
     user = graphene.Field(UserType)
 
-    def mutate(self, info, id, first_name=None, last_name=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id, first_name=None, last_name=None):
         try:
             user = User.objects.get(id=id)
         except User.DoesNotExist:
@@ -109,13 +111,14 @@ class UpdateUserMutation(graphene.Mutation):
         return UpdateUserMutation(user=user)
 
 
-class DeleteUserMutation(graphene.Mutation):
-    class Arguments:
+class DeleteUserMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         try:
             user = User.objects.get(id=id)
             user.delete()
@@ -124,32 +127,35 @@ class DeleteUserMutation(graphene.Mutation):
             raise Exception("User not found")
 
 
-class CreateProductAlertMutation(graphene.Mutation):
-    class Arguments:
+class CreateProductAlertMutation(relay.ClientIDMutation):
+    class Input:
         product_id = graphene.ID(required=True)
         email = graphene.String(required=True)
 
     product_alert = graphene.Field(ProductAlertType)
 
-    def mutate(self, info, product_id, email):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, product_id, email):
         user = info.context.user if info.context.user.is_authenticated else None
         product_alert = ProductAlert.objects.create(product_id=product_id, email=email, user=user)
         return CreateProductAlertMutation(product_alert=product_alert)
 
 
-class CancelProductAlertMutation(graphene.Mutation):
-    class Arguments:
+class CancelProductAlertMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         try:
             product_alert = ProductAlert.objects.get(id=id)
             product_alert.cancel()
             return CancelProductAlertMutation(success=True)
         except ProductAlert.DoesNotExist:
             raise Exception("Product Alert not found")
+
 
 # Mutations
 class CustomerMutation(graphene.ObjectType):
@@ -163,3 +169,4 @@ class CustomerMutation(graphene.ObjectType):
 # Schema
 class CustomerSchema(graphene.Schema):
     query = CustomerQuery
+    mutation = CustomerMutation

@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.address.models import UserAddress, Country
@@ -16,6 +17,7 @@ class CountryType(DjangoObjectType):
             "display_order",
             "is_shipping_country",
         )
+        interfaces = (relay.Node,)  # Add Relay interface for compatibility
 
 
 # GraphQL Type for UserAddress
@@ -44,6 +46,7 @@ class UserAddressType(DjangoObjectType):
             "notes",
             "date_created",
         )
+        interfaces = (relay.Node,)  # Add Relay interface for compatibility
 
     # Resolver for country to ensure proper serialization
     country = graphene.Field(CountryType)
@@ -54,31 +57,25 @@ class UserAddressType(DjangoObjectType):
 
 # GraphQL Query for Addresses
 class AddressQuery(graphene.ObjectType):
-    countries = graphene.List(CountryType)
-    user_addresses = graphene.List(UserAddressType)
-    user_address = graphene.Field(UserAddressType, id=graphene.ID(required=True))
+    countries = relay.ConnectionField(relay.Connection.create_type('CountryConnection', node=CountryType))
+    user_addresses = relay.ConnectionField(relay.Connection.create_type('UserAddressConnection', node=UserAddressType))
+    user_address = relay.Node.Field(UserAddressType)
 
-    def resolve_countries(self, info):
+    def resolve_countries(self, info, **kwargs):
         return Country.objects.all()
 
-    def resolve_user_addresses(self, info):
+    def resolve_user_addresses(self, info, **kwargs):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view addresses.")
         return UserAddress.objects.filter(user=user)
 
-    def resolve_user_address(self, info, id):
-        user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required to view an address.")
-        try:
-            return UserAddress.objects.get(id=id, user=user)
-        except UserAddress.DoesNotExist:
-            raise Exception("Address not found.")
+
+
 
 # GraphQL Mutations for Addresses
-class CreateUserAddressMutation(graphene.Mutation):
-    class Arguments:
+class CreateUserAddressMutation(relay.ClientIDMutation):
+    class Input:
         title = graphene.String()
         first_name = graphene.String(required=True)
         last_name = graphene.String(required=True)
@@ -94,31 +91,24 @@ class CreateUserAddressMutation(graphene.Mutation):
 
     address = graphene.Field(UserAddressType)
 
-    def mutate(self, info, first_name, last_name, line1, postcode, country_id, **kwargs):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, **input):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to create an address.")
 
         try:
-            country = Country.objects.get(id=country_id)
+            country = Country.objects.get(id=input.pop("country_id"))
         except Country.DoesNotExist:
             raise Exception("Invalid country ID.")
 
-        address = UserAddress(
-            user=user,
-            first_name=first_name,
-            last_name=last_name,
-            line1=line1,
-            postcode=postcode,
-            country=country,
-            **kwargs
-        )
+        address = UserAddress(user=user, country=country, **input)
         address.save()
         return CreateUserAddressMutation(address=address)
 
 
-class UpdateUserAddressMutation(graphene.Mutation):
-    class Arguments:
+class UpdateUserAddressMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
         title = graphene.String()
         first_name = graphene.String()
@@ -135,7 +125,8 @@ class UpdateUserAddressMutation(graphene.Mutation):
 
     address = graphene.Field(UserAddressType)
 
-    def mutate(self, info, id, **kwargs):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id, **input):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to update an address.")
@@ -145,26 +136,27 @@ class UpdateUserAddressMutation(graphene.Mutation):
         except UserAddress.DoesNotExist:
             raise Exception("Address not found.")
 
-        if "country_id" in kwargs:
+        if "country_id" in input:
             try:
-                kwargs["country"] = Country.objects.get(id=kwargs.pop("country_id"))
+                input["country"] = Country.objects.get(id=input.pop("country_id"))
             except Country.DoesNotExist:
                 raise Exception("Invalid country ID.")
 
-        for field, value in kwargs.items():
+        for field, value in input.items():
             setattr(address, field, value)
 
         address.save()
         return UpdateUserAddressMutation(address=address)
 
 
-class DeleteUserAddressMutation(graphene.Mutation):
-    class Arguments:
+class DeleteUserAddressMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to delete an address.")
@@ -177,12 +169,15 @@ class DeleteUserAddressMutation(graphene.Mutation):
         address.delete()
         return DeleteUserAddressMutation(success=True)
 
+
 # Mutations
 class AddressMutation(graphene.ObjectType):
     create_user_address = CreateUserAddressMutation.Field()
     update_user_address = UpdateUserAddressMutation.Field()
     delete_user_address = DeleteUserAddressMutation.Field()
 
+
 # Schema for Addresses
 class AddressSchema(graphene.Schema):
     query = AddressQuery
+    mutation = AddressMutation

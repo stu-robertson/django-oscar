@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.offer.models import (
@@ -35,6 +36,12 @@ class ConditionalOfferType(DjangoObjectType):
             "redirect_url",
             "date_created",
         )
+        interfaces = (relay.Node,)
+
+
+class ConditionalOfferConnection(relay.Connection):
+    class Meta:
+        node = ConditionalOfferType
 
 
 class BenefitType(DjangoObjectType):
@@ -48,6 +55,12 @@ class BenefitType(DjangoObjectType):
             "max_affected_items",
             "proxy_class",
         )
+        interfaces = (relay.Node,)
+
+
+class BenefitConnection(relay.Connection):
+    class Meta:
+        node = BenefitType
 
 
 class ConditionType(DjangoObjectType):
@@ -60,6 +73,12 @@ class ConditionType(DjangoObjectType):
             "value",
             "proxy_class",
         )
+        interfaces = (relay.Node,)
+
+
+class ConditionConnection(relay.Connection):
+    class Meta:
+        node = ConditionType
 
 
 class RangeType(DjangoObjectType):
@@ -73,6 +92,12 @@ class RangeType(DjangoObjectType):
             "includes_products",
             "date_created",
         )
+        interfaces = (relay.Node,)
+
+
+class RangeConnection(relay.Connection):
+    class Meta:
+        node = RangeType
 
 
 class RangeProductType(DjangoObjectType):
@@ -84,67 +109,51 @@ class RangeProductType(DjangoObjectType):
             "product",
             "display_order",
         )
+        interfaces = (relay.Node,)
+
+
+class RangeProductConnection(relay.Connection):
+    class Meta:
+        node = RangeProductType
 
 
 # Queries
 class OfferQuery(graphene.ObjectType):
-    offers = graphene.List(ConditionalOfferType)
-    offer = graphene.Field(ConditionalOfferType, id=graphene.ID(required=True))
-    benefits = graphene.List(BenefitType)
-    benefit = graphene.Field(BenefitType, id=graphene.ID(required=True))
-    conditions = graphene.List(ConditionType)
-    condition = graphene.Field(ConditionType, id=graphene.ID(required=True))
-    ranges = graphene.List(RangeType)
-    range = graphene.Field(RangeType, id=graphene.ID(required=True))
+    offers = relay.ConnectionField(ConditionalOfferConnection)
+    offer = relay.Node.Field(ConditionalOfferType)
+    benefits = relay.ConnectionField(BenefitConnection)
+    benefit = relay.Node.Field(BenefitType)
+    conditions = relay.ConnectionField(ConditionConnection)
+    condition = relay.Node.Field(ConditionType)
+    ranges = relay.ConnectionField(RangeConnection)
+    range = relay.Node.Field(RangeType)
 
-    def resolve_offers(self, info):
+    def resolve_offers(self, info, **kwargs):
         return ConditionalOffer.objects.all()
 
-    def resolve_offer(self, info, id):
-        try:
-            return ConditionalOffer.objects.get(id=id)
-        except ConditionalOffer.DoesNotExist:
-            return None
-
-    def resolve_benefits(self, info):
+    def resolve_benefits(self, info, **kwargs):
         return Benefit.objects.all()
 
-    def resolve_benefit(self, info, id):
-        try:
-            return Benefit.objects.get(id=id)
-        except Benefit.DoesNotExist:
-            return None
-
-    def resolve_conditions(self, info):
+    def resolve_conditions(self, info, **kwargs):
         return Condition.objects.all()
 
-    def resolve_condition(self, info, id):
-        try:
-            return Condition.objects.get(id=id)
-        except Condition.DoesNotExist:
-            return None
-
-    def resolve_ranges(self, info):
+    def resolve_ranges(self, info, **kwargs):
         return Range.objects.all()
 
-    def resolve_range(self, info, id):
-        try:
-            return Range.objects.get(id=id)
-        except Range.DoesNotExist:
-            return None
 
 # Mutations for Offer
-class CreateConditionalOfferMutation(graphene.Mutation):
-    class Arguments:
+class CreateConditionalOfferMutation(relay.ClientIDMutation):
+    class Input:
         name = graphene.String(required=True)
-        description = graphene.String(required=False)
+        description = graphene.String()
         offer_type = graphene.String(required=True)
         condition_id = graphene.ID(required=True)
         benefit_id = graphene.ID(required=True)
 
     offer = graphene.Field(ConditionalOfferType)
 
-    def mutate(self, info, name, offer_type, condition_id, benefit_id, description=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, name, offer_type, condition_id, benefit_id, description=None):
         try:
             condition = Condition.objects.get(id=condition_id)
             benefit = Benefit.objects.get(id=benefit_id)
@@ -161,16 +170,17 @@ class CreateConditionalOfferMutation(graphene.Mutation):
         return CreateConditionalOfferMutation(offer=offer)
 
 
-class UpdateConditionalOfferMutation(graphene.Mutation):
-    class Arguments:
+class UpdateConditionalOfferMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
-        name = graphene.String(required=False)
-        description = graphene.String(required=False)
-        offer_type = graphene.String(required=False)
+        name = graphene.String()
+        description = graphene.String()
+        offer_type = graphene.String()
 
     offer = graphene.Field(ConditionalOfferType)
 
-    def mutate(self, info, id, name=None, description=None, offer_type=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id, name=None, description=None, offer_type=None):
         try:
             offer = ConditionalOffer.objects.get(id=id)
         except ConditionalOffer.DoesNotExist:
@@ -187,13 +197,14 @@ class UpdateConditionalOfferMutation(graphene.Mutation):
         return UpdateConditionalOfferMutation(offer=offer)
 
 
-class DeleteConditionalOfferMutation(graphene.Mutation):
-    class Arguments:
+class DeleteConditionalOfferMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         try:
             offer = ConditionalOffer.objects.get(id=id)
             offer.delete()
@@ -202,35 +213,38 @@ class DeleteConditionalOfferMutation(graphene.Mutation):
             raise Exception("Offer not found")
 
 
-class CreateRangeMutation(graphene.Mutation):
-    class Arguments:
+class CreateRangeMutation(relay.ClientIDMutation):
+    class Input:
         name = graphene.String(required=True)
-        description = graphene.String(required=False)
-        is_public = graphene.Boolean(required=False)
+        description = graphene.String()
+        is_public = graphene.Boolean()
 
     range = graphene.Field(RangeType)
 
-    def mutate(self, info, name, description=None, is_public=True):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, name, description=None, is_public=True):
         range_obj = Range.objects.create(
             name=name, description=description, is_public=is_public
         )
         return CreateRangeMutation(range=range_obj)
 
 
-class AddProductToRangeMutation(graphene.Mutation):
-    class Arguments:
+class AddProductToRangeMutation(relay.ClientIDMutation):
+    class Input:
         range_id = graphene.ID(required=True)
         product_id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, range_id, product_id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, range_id, product_id):
         try:
             range_obj = Range.objects.get(id=range_id)
             range_obj.included_products.add(product_id)
             return AddProductToRangeMutation(success=True)
         except Range.DoesNotExist:
             raise Exception("Range not found")
+
 
 # Mutations
 class OfferMutation(graphene.ObjectType):
@@ -240,6 +254,8 @@ class OfferMutation(graphene.ObjectType):
     create_range = CreateRangeMutation.Field()
     add_product_to_range = AddProductToRangeMutation.Field()
 
+
 # Schema
 class OfferSchema(graphene.Schema):
     query = OfferQuery
+    mutation = OfferMutation

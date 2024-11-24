@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     # apps required for graphql api
     'graphene_django',
     'api',
+    
 ]
 
 SITE_ID = 1

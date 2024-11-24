@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.order.models import (
@@ -35,6 +36,12 @@ class OrderType(DjangoObjectType):
             "date_placed",
             "lines",
         )
+        interfaces = (relay.Node,)
+
+
+class OrderConnection(relay.Connection):
+    class Meta:
+        node = OrderType
 
 
 class LineType(DjangoObjectType):
@@ -51,36 +58,72 @@ class LineType(DjangoObjectType):
             "unit_price_excl_tax",
             "status",
         )
+        interfaces = (relay.Node,)
+
+
+class LineConnection(relay.Connection):
+    class Meta:
+        node = LineType
 
 
 class OrderNoteType(DjangoObjectType):
     class Meta:
         model = OrderNote
         fields = ("id", "order", "user", "note_type", "message", "date_created")
+        interfaces = (relay.Node,)
+
+
+class OrderNoteConnection(relay.Connection):
+    class Meta:
+        node = OrderNoteType
 
 
 class OrderStatusChangeType(DjangoObjectType):
     class Meta:
         model = OrderStatusChange
         fields = ("id", "order", "old_status", "new_status", "date_created")
+        interfaces = (relay.Node,)
+
+
+class OrderStatusChangeConnection(relay.Connection):
+    class Meta:
+        node = OrderStatusChangeType
 
 
 class ShippingAddressType(DjangoObjectType):
     class Meta:
         model = ShippingAddress
         fields = ("id", "line1", "line2", "city", "postcode", "country")
+        interfaces = (relay.Node,)
+
+
+class ShippingAddressConnection(relay.Connection):
+    class Meta:
+        node = ShippingAddressType
 
 
 class BillingAddressType(DjangoObjectType):
     class Meta:
         model = BillingAddress
         fields = ("id", "line1", "line2", "city", "postcode", "country")
+        interfaces = (relay.Node,)
+
+
+class BillingAddressConnection(relay.Connection):
+    class Meta:
+        node = BillingAddressType
 
 
 class OrderDiscountType(DjangoObjectType):
     class Meta:
         model = OrderDiscount
         fields = ("id", "order", "offer_name", "voucher_code", "amount", "category")
+        interfaces = (relay.Node,)
+
+
+class OrderDiscountConnection(relay.Connection):
+    class Meta:
+        node = OrderDiscountType
 
 
 class LinePriceType(DjangoObjectType):
@@ -95,70 +138,83 @@ class LinePriceType(DjangoObjectType):
             "shipping_incl_tax",
             "shipping_excl_tax",
         )
+        interfaces = (relay.Node,)
+
+
+class LinePriceConnection(relay.Connection):
+    class Meta:
+        node = LinePriceType
 
 
 class ShippingEventType(DjangoObjectType):
     class Meta:
         model = ShippingEvent
         fields = ("id", "order", "lines", "event_type", "date_created")
+        interfaces = (relay.Node,)
+
+
+class ShippingEventConnection(relay.Connection):
+    class Meta:
+        node = ShippingEventType
 
 
 class PaymentEventType(DjangoObjectType):
     class Meta:
         model = PaymentEvent
         fields = ("id", "order", "amount", "reference", "event_type", "date_created")
+        interfaces = (relay.Node,)
+
+
+class PaymentEventConnection(relay.Connection):
+    class Meta:
+        node = PaymentEventType
 
 
 class SurchargeType(DjangoObjectType):
     class Meta:
         model = Surcharge
         fields = ("id", "order", "name", "incl_tax", "excl_tax")
+        interfaces = (relay.Node,)
+
+
+class SurchargeConnection(relay.Connection):
+    class Meta:
+        node = SurchargeType
 
 
 # Queries
 class OrderQuery(graphene.ObjectType):
-    orders = graphene.List(OrderType)
-    order = graphene.Field(OrderType, id=graphene.ID(required=True))
-    order_lines = graphene.List(LineType)
-    line = graphene.Field(LineType, id=graphene.ID(required=True))
-    shipping_addresses = graphene.List(ShippingAddressType)
-    billing_addresses = graphene.List(BillingAddressType)
-    order_notes = graphene.List(OrderNoteType)
-    discounts = graphene.List(OrderDiscountType)
+    orders = relay.ConnectionField(OrderConnection)
+    order = relay.Node.Field(OrderType)
+    order_lines = relay.ConnectionField(LineConnection)
+    line = relay.Node.Field(LineType)
+    shipping_addresses = relay.ConnectionField(ShippingAddressConnection)
+    billing_addresses = relay.ConnectionField(BillingAddressConnection)
+    order_notes = relay.ConnectionField(OrderNoteConnection)
+    discounts = relay.ConnectionField(OrderDiscountConnection)
 
-    def resolve_orders(self, info):
+    def resolve_orders(self, info, **kwargs):
         return Order.objects.all()
 
-    def resolve_order(self, info, id):
-        try:
-            return Order.objects.get(id=id)
-        except Order.DoesNotExist:
-            return None
-
-    def resolve_order_lines(self, info):
+    def resolve_order_lines(self, info, **kwargs):
         return Line.objects.all()
 
-    def resolve_line(self, info, id):
-        try:
-            return Line.objects.get(id=id)
-        except Line.DoesNotExist:
-            return None
-
-    def resolve_shipping_addresses(self, info):
+    def resolve_shipping_addresses(self, info, **kwargs):
         return ShippingAddress.objects.all()
 
-    def resolve_billing_addresses(self, info):
+    def resolve_billing_addresses(self, info, **kwargs):
         return BillingAddress.objects.all()
 
-    def resolve_order_notes(self, info):
+    def resolve_order_notes(self, info, **kwargs):
         return OrderNote.objects.all()
 
-    def resolve_discounts(self, info):
+    def resolve_discounts(self, info, **kwargs):
         return OrderDiscount.objects.all()
 
+
 # Mutations for Order
-class CreateOrderMutation(graphene.Mutation):
-    class Arguments:
+class CreateOrderMutation(relay.ClientIDMutation):
+    class Input:
         user_id = graphene.ID(required=True)
         billing_address_id = graphene.ID(required=True)
         shipping_address_id = graphene.ID(required=True)
@@ -167,25 +223,15 @@ class CreateOrderMutation(graphene.Mutation):
         shipping_incl_tax = graphene.Float(required=True)
         shipping_excl_tax = graphene.Float(required=True)
         currency = graphene.String(required=True)
-        status = graphene.String(required=False)
+        status = graphene.String()
 
     order = graphene.Field(OrderType)
 
-    def mutate(
-        self,
-        info,
-        user_id,
-        billing_address_id,
-        shipping_address_id,
-        total_incl_tax,
-        total_excl_tax,
-        shipping_incl_tax,
-        shipping_excl_tax,
-        currency,
-        status=None,
-    ):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, user_id, billing_address_id, shipping_address_id,
+                                total_incl_tax, total_excl_tax, shipping_incl_tax, shipping_excl_tax,
+                                currency, status=None):
         from django.contrib.auth import get_user_model
-        from oscar.apps.order.models import Order
 
         User = get_user_model()
         try:
@@ -209,14 +255,15 @@ class CreateOrderMutation(graphene.Mutation):
         return CreateOrderMutation(order=order)
 
 
-class UpdateOrderStatusMutation(graphene.Mutation):
-    class Arguments:
+class UpdateOrderStatusMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
         status = graphene.String(required=True)
 
     order = graphene.Field(OrderType)
 
-    def mutate(self, info, id, status):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id, status):
         try:
             order = Order.objects.get(id=id)
             order.status = status
@@ -226,15 +273,16 @@ class UpdateOrderStatusMutation(graphene.Mutation):
             raise Exception("Order not found")
 
 
-class AddOrderNoteMutation(graphene.Mutation):
-    class Arguments:
+class AddOrderNoteMutation(relay.ClientIDMutation):
+    class Input:
         order_id = graphene.ID(required=True)
         user_id = graphene.ID(required=True)
         message = graphene.String(required=True)
 
     order_note = graphene.Field(OrderNoteType)
 
-    def mutate(self, info, order_id, user_id, message):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, order_id, user_id, message):
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
@@ -247,12 +295,15 @@ class AddOrderNoteMutation(graphene.Mutation):
         order_note = OrderNote.objects.create(order=order, user=user, message=message)
         return AddOrderNoteMutation(order_note=order_note)
 
+
 # Mutations
 class OrderMutation(graphene.ObjectType):
     create_order = CreateOrderMutation.Field()
     update_order_status = UpdateOrderStatusMutation.Field()
     add_order_note = AddOrderNoteMutation.Field()
 
+
 # Schema
 class OrderSchema(graphene.Schema):
     query = OrderQuery
+    mutation = OrderMutation

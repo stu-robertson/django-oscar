@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.communication.models import (
@@ -5,6 +6,7 @@ from oscar.apps.communication.models import (
     CommunicationEventType,
     Notification,
 )
+from django.utils import timezone
 
 
 # GraphQL Types
@@ -12,6 +14,12 @@ class EmailType(DjangoObjectType):
     class Meta:
         model = Email
         fields = ("id", "user", "email", "subject", "body_text", "body_html", "date_sent")
+        interfaces = (relay.Node,)
+
+
+class EmailConnection(relay.Connection):
+    class Meta:
+        node = EmailType
 
 
 class CommunicationEventTypeType(DjangoObjectType):
@@ -29,6 +37,12 @@ class CommunicationEventTypeType(DjangoObjectType):
             "date_created",
             "date_updated",
         )
+        interfaces = (relay.Node,)
+
+
+class CommunicationEventTypeConnection(relay.Connection):
+    class Meta:
+        node = CommunicationEventTypeType
 
 
 class NotificationType(DjangoObjectType):
@@ -44,51 +58,38 @@ class NotificationType(DjangoObjectType):
             "date_sent",
             "date_read",
         )
+        interfaces = (relay.Node,)
+
+
+class NotificationConnection(relay.Connection):
+    class Meta:
+        node = NotificationType
 
 
 # Queries
 class CommunicationQuery(graphene.ObjectType):
-    emails = graphene.List(EmailType)
-    email = graphene.Field(EmailType, id=graphene.ID(required=True))
-    communication_event_types = graphene.List(CommunicationEventTypeType)
-    communication_event_type = graphene.Field(
-        CommunicationEventTypeType, id=graphene.ID(required=True)
-    )
-    notifications = graphene.List(NotificationType, recipient_id=graphene.ID())
-    notification = graphene.Field(NotificationType, id=graphene.ID(required=True))
+    emails = relay.ConnectionField(EmailConnection)
+    email = relay.Node.Field(EmailType)
+    communication_event_types = relay.ConnectionField(CommunicationEventTypeConnection)
+    communication_event_type = relay.Node.Field(CommunicationEventTypeType)
+    notifications = relay.ConnectionField(NotificationConnection, recipient_id=graphene.ID())
+    notification = relay.Node.Field(NotificationType)
 
-    def resolve_emails(self, info):
+    def resolve_emails(self, info, **kwargs):
         return Email.objects.all()
 
-    def resolve_email(self, info, id):
-        try:
-            return Email.objects.get(id=id)
-        except Email.DoesNotExist:
-            return None
-
-    def resolve_communication_event_types(self, info):
+    def resolve_communication_event_types(self, info, **kwargs):
         return CommunicationEventType.objects.all()
 
-    def resolve_communication_event_type(self, info, id):
-        try:
-            return CommunicationEventType.objects.get(id=id)
-        except CommunicationEventType.DoesNotExist:
-            return None
-
-    def resolve_notifications(self, info, recipient_id=None):
+    def resolve_notifications(self, info, recipient_id=None, **kwargs):
         if recipient_id:
             return Notification.objects.filter(recipient_id=recipient_id)
         return Notification.objects.all()
 
-    def resolve_notification(self, info, id):
-        try:
-            return Notification.objects.get(id=id)
-        except Notification.DoesNotExist:
-            return None
 
 # Mutations for Communication
-class CreateEmailMutation(graphene.Mutation):
-    class Arguments:
+class CreateEmailMutation(relay.ClientIDMutation):
+    class Input:
         user_id = graphene.ID(required=True)
         email = graphene.String(required=True)
         subject = graphene.String(required=True)
@@ -97,7 +98,8 @@ class CreateEmailMutation(graphene.Mutation):
 
     email_instance = graphene.Field(EmailType)
 
-    def mutate(self, info, user_id, email, subject, body_text=None, body_html=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, user_id, email, subject, body_text=None, body_html=None):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to send an email.")
@@ -112,8 +114,8 @@ class CreateEmailMutation(graphene.Mutation):
         return CreateEmailMutation(email_instance=email_instance)
 
 
-class CreateNotificationMutation(graphene.Mutation):
-    class Arguments:
+class CreateNotificationMutation(relay.ClientIDMutation):
+    class Input:
         recipient_id = graphene.ID(required=True)
         sender_id = graphene.ID()
         subject = graphene.String(required=True)
@@ -122,7 +124,8 @@ class CreateNotificationMutation(graphene.Mutation):
 
     notification = graphene.Field(NotificationType)
 
-    def mutate(self, info, recipient_id, subject, body, sender_id=None, location=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, recipient_id, subject, body, sender_id=None, location=None):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to create a notification.")
@@ -137,13 +140,14 @@ class CreateNotificationMutation(graphene.Mutation):
         return CreateNotificationMutation(notification=notification)
 
 
-class MarkNotificationAsReadMutation(graphene.Mutation):
-    class Arguments:
+class MarkNotificationAsReadMutation(relay.ClientIDMutation):
+    class Input:
         id = graphene.ID(required=True)
 
     success = graphene.Boolean()
 
-    def mutate(self, info, id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, id):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to update a notification.")
@@ -157,12 +161,15 @@ class MarkNotificationAsReadMutation(graphene.Mutation):
         notification.save()
         return MarkNotificationAsReadMutation(success=True)
 
+
 # Mutations
 class CommunicationMutation(graphene.ObjectType):
     create_email = CreateEmailMutation.Field()
     create_notification = CreateNotificationMutation.Field()
     mark_notification_as_read = MarkNotificationAsReadMutation.Field()
 
+
 # Schema
 class CommunicationSchema(graphene.Schema):
     query = CommunicationQuery
+    mutation = CommunicationMutation

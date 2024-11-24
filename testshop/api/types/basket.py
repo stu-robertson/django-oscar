@@ -1,6 +1,8 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.basket.models import Basket, Line, LineAttribute
+from oscar.apps.catalogue.models import Product  # Required for mutations
 
 
 # GraphQL Type for LineAttribute
@@ -13,6 +15,12 @@ class LineAttributeType(DjangoObjectType):
             "option",
             "value",
         )
+        interfaces = (relay.Node,)
+
+
+class LineAttributeConnection(relay.Connection):
+    class Meta:
+        node = LineAttributeType
 
 
 # GraphQL Type for Line
@@ -34,12 +42,18 @@ class LineType(DjangoObjectType):
             "date_updated",
             "attributes",
         )
+        interfaces = (relay.Node,)
 
     # Resolver for attributes to return related LineAttributes
-    attributes = graphene.List(LineAttributeType)
+    attributes = relay.ConnectionField(LineAttributeConnection)
 
-    def resolve_attributes(self, info):
+    def resolve_attributes(self, info, **kwargs):
         return self.attributes.all()
+
+
+class LineConnection(relay.Connection):
+    class Meta:
+        node = LineType
 
 
 # GraphQL Type for Basket
@@ -62,6 +76,7 @@ class BasketType(DjangoObjectType):
             "is_empty",
             "is_shipping_required",
         )
+        interfaces = (relay.Node,)
 
     # Additional computed fields
     num_items = graphene.Int()
@@ -86,52 +101,41 @@ class BasketType(DjangoObjectType):
         return self.total_discount
 
 
+class BasketConnection(relay.Connection):
+    class Meta:
+        node = BasketType
+
+
 # Queries for Basket
 class BasketQuery(graphene.ObjectType):
-    baskets = graphene.List(BasketType)
-    basket = graphene.Field(BasketType, id=graphene.ID(required=True))
-    lines = graphene.List(LineType)
-    line = graphene.Field(LineType, id=graphene.ID(required=True))
+    baskets = relay.ConnectionField(BasketConnection)
+    basket = relay.Node.Field(BasketType)
+    lines = relay.ConnectionField(LineConnection)
+    line = relay.Node.Field(LineType)
 
-    def resolve_baskets(self, info):
+    def resolve_baskets(self, info, **kwargs):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view baskets.")
         return Basket.objects.filter(owner=user)
 
-    def resolve_basket(self, info, id):
-        user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required to view a basket.")
-        try:
-            return Basket.objects.get(id=id, owner=user)
-        except Basket.DoesNotExist:
-            raise Exception("Basket not found.")
-
-    def resolve_lines(self, info):
+    def resolve_lines(self, info, **kwargs):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to view basket lines.")
         return Line.objects.filter(basket__owner=user)
 
-    def resolve_line(self, info, id):
-        user = info.context.user
-        if not user.is_authenticated:
-            raise Exception("Authentication required to view a basket line.")
-        try:
-            return Line.objects.get(id=id, basket__owner=user)
-        except Line.DoesNotExist:
-            raise Exception("Line not found.")
 
 # Mutations for Basket
-class AddToBasketMutation(graphene.Mutation):
-    class Arguments:
+class AddToBasketMutation(relay.ClientIDMutation):
+    class Input:
         product_id = graphene.ID(required=True)
         quantity = graphene.Int(required=True)
 
     basket = graphene.Field(BasketType)
 
-    def mutate(self, info, product_id, quantity):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, product_id, quantity):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to add items to a basket.")
@@ -147,13 +151,14 @@ class AddToBasketMutation(graphene.Mutation):
         return AddToBasketMutation(basket=basket)
 
 
-class RemoveFromBasketMutation(graphene.Mutation):
-    class Arguments:
+class RemoveFromBasketMutation(relay.ClientIDMutation):
+    class Input:
         line_id = graphene.ID(required=True)
 
     basket = graphene.Field(BasketType)
 
-    def mutate(self, info, line_id):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, line_id):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to remove items from a basket.")
@@ -164,19 +169,20 @@ class RemoveFromBasketMutation(graphene.Mutation):
             raise Exception("Line not found.")
 
         basket = line.basket
-        basket.lines.filter(id=line_id).delete()
+        line.delete()
         basket.save()
         return RemoveFromBasketMutation(basket=basket)
 
 
-class UpdateBasketLineMutation(graphene.Mutation):
-    class Arguments:
+class UpdateBasketLineMutation(relay.ClientIDMutation):
+    class Input:
         line_id = graphene.ID(required=True)
         quantity = graphene.Int(required=True)
 
     basket = graphene.Field(BasketType)
 
-    def mutate(self, info, line_id, quantity):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, line_id, quantity):
         user = info.context.user
         if not user.is_authenticated:
             raise Exception("Authentication required to update basket lines.")
@@ -193,6 +199,7 @@ class UpdateBasketLineMutation(graphene.Mutation):
         line.save()
         return UpdateBasketLineMutation(basket=line.basket)
 
+
 # Mutations
 class BasketMutation(graphene.ObjectType):
     add_to_basket = AddToBasketMutation.Field()
@@ -203,3 +210,4 @@ class BasketMutation(graphene.ObjectType):
 # Schema for Basket
 class BasketSchema(graphene.Schema):
     query = BasketQuery
+    mutation = BasketMutation

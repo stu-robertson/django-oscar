@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.shipping.models import OrderAndItemCharges, WeightBased, WeightBand
@@ -17,6 +18,12 @@ class OrderAndItemChargesType(DjangoObjectType):
             "price_per_item",
             "free_shipping_threshold",
         )
+        interfaces = (relay.Node,)
+
+
+class OrderAndItemChargesConnection(relay.Connection):
+    class Meta:
+        node = OrderAndItemChargesType
 
 
 class WeightBasedType(DjangoObjectType):
@@ -33,6 +40,12 @@ class WeightBasedType(DjangoObjectType):
             "num_bands",
             "top_band",
         )
+        interfaces = (relay.Node,)
+
+
+class WeightBasedConnection(relay.Connection):
+    class Meta:
+        node = WeightBasedType
 
 
 class WeightBandType(DjangoObjectType):
@@ -46,51 +59,42 @@ class WeightBandType(DjangoObjectType):
             "weight_from",
             "weight_to",
         )
+        interfaces = (relay.Node,)
+
+
+class WeightBandConnection(relay.Connection):
+    class Meta:
+        node = WeightBandType
 
 
 # Queries
 class ShippingQuery(graphene.ObjectType):
-    order_and_item_charges = graphene.List(OrderAndItemChargesType)
-    order_and_item_charge = graphene.Field(
-        OrderAndItemChargesType, id=graphene.ID(required=True)
+    order_and_item_charges = relay.ConnectionField(OrderAndItemChargesConnection)
+    order_and_item_charge = relay.Node.Field(OrderAndItemChargesType)
+
+    weight_based_methods = relay.ConnectionField(WeightBasedConnection)
+    weight_based_method = relay.Node.Field(WeightBasedType)
+
+    weight_bands_by_method = relay.ConnectionField(
+        WeightBandConnection, method_id=graphene.ID(required=True)
     )
 
-    weight_based_methods = graphene.List(WeightBasedType)
-    weight_based_method = graphene.Field(
-        WeightBasedType, id=graphene.ID(required=True)
-    )
-
-    weight_bands_by_method = graphene.List(
-        WeightBandType, method_id=graphene.ID(required=True)
-    )
-
-    def resolve_order_and_item_charges(self, info):
+    def resolve_order_and_item_charges(self, info, **kwargs):
         return OrderAndItemCharges.objects.all()
 
-    def resolve_order_and_item_charge(self, info, id):
-        try:
-            return OrderAndItemCharges.objects.get(id=id)
-        except OrderAndItemCharges.DoesNotExist:
-            return None
-
-    def resolve_weight_based_methods(self, info):
+    def resolve_weight_based_methods(self, info, **kwargs):
         return WeightBased.objects.all()
 
-    def resolve_weight_based_method(self, info, id):
-        try:
-            return WeightBased.objects.get(id=id)
-        except WeightBased.DoesNotExist:
-            return None
-
-    def resolve_weight_bands_by_method(self, info, method_id):
+    def resolve_weight_bands_by_method(self, info, method_id, **kwargs):
         try:
             return WeightBand.objects.filter(method_id=method_id)
         except WeightBand.DoesNotExist:
             return None
 
+
 # Mutations for Shipping
-class CreateOrderAndItemChargeMutation(graphene.Mutation):
-    class Arguments:
+class CreateOrderAndItemChargeMutation(relay.ClientIDMutation):
+    class Input:
         code = graphene.String(required=True)
         name = graphene.String(required=True)
         description = graphene.String(required=False)
@@ -100,15 +104,9 @@ class CreateOrderAndItemChargeMutation(graphene.Mutation):
 
     order_and_item_charge = graphene.Field(OrderAndItemChargesType)
 
-    def mutate(
-        self,
-        info,
-        code,
-        name,
-        description=None,
-        price_per_order=None,
-        price_per_item=None,
-        free_shipping_threshold=None,
+    @classmethod
+    def mutate_and_get_payload(
+        cls, root, info, code, name, description=None, price_per_order=None, price_per_item=None, free_shipping_threshold=None
     ):
         order_and_item_charge = OrderAndItemCharges.objects.create(
             code=code,
@@ -121,8 +119,8 @@ class CreateOrderAndItemChargeMutation(graphene.Mutation):
         return CreateOrderAndItemChargeMutation(order_and_item_charge=order_and_item_charge)
 
 
-class CreateWeightBasedMethodMutation(graphene.Mutation):
-    class Arguments:
+class CreateWeightBasedMethodMutation(relay.ClientIDMutation):
+    class Input:
         code = graphene.String(required=True)
         name = graphene.String(required=True)
         description = graphene.String(required=False)
@@ -131,14 +129,9 @@ class CreateWeightBasedMethodMutation(graphene.Mutation):
 
     weight_based_method = graphene.Field(WeightBasedType)
 
-    def mutate(
-        self,
-        info,
-        code,
-        name,
-        description=None,
-        weight_attribute=None,
-        default_weight=None,
+    @classmethod
+    def mutate_and_get_payload(
+        cls, root, info, code, name, description=None, weight_attribute=None, default_weight=None
     ):
         weight_based_method = WeightBased.objects.create(
             code=code,
@@ -150,15 +143,16 @@ class CreateWeightBasedMethodMutation(graphene.Mutation):
         return CreateWeightBasedMethodMutation(weight_based_method=weight_based_method)
 
 
-class CreateWeightBandMutation(graphene.Mutation):
-    class Arguments:
+class CreateWeightBandMutation(relay.ClientIDMutation):
+    class Input:
         method_id = graphene.ID(required=True)
         upper_limit = graphene.Float(required=True)
         charge = graphene.Float(required=True)
 
     weight_band = graphene.Field(WeightBandType)
 
-    def mutate(self, info, method_id, upper_limit, charge):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, method_id, upper_limit, charge):
         try:
             method = WeightBased.objects.get(id=method_id)
         except WeightBased.DoesNotExist:
@@ -168,6 +162,7 @@ class CreateWeightBandMutation(graphene.Mutation):
             method=method, upper_limit=upper_limit, charge=charge
         )
         return CreateWeightBandMutation(weight_band=weight_band)
+
 
 # Mutations
 class ShippingMutation(graphene.ObjectType):
@@ -179,3 +174,4 @@ class ShippingMutation(graphene.ObjectType):
 # Schema
 class ShippingSchema(graphene.Schema):
     query = ShippingQuery
+    mutation = ShippingMutation

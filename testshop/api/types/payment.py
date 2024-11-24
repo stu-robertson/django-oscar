@@ -1,3 +1,4 @@
+from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
 from oscar.apps.payment.models import Transaction, Source, SourceType, Bankcard
@@ -16,6 +17,12 @@ class TransactionType(DjangoObjectType):
             "status",
             "date_created",
         )
+        interfaces = (relay.Node,)
+
+
+class TransactionConnection(relay.Connection):
+    class Meta:
+        node = TransactionType
 
 
 class SourceTypeType(DjangoObjectType):
@@ -26,6 +33,12 @@ class SourceTypeType(DjangoObjectType):
             "name",
             "code",
         )
+        interfaces = (relay.Node,)
+
+
+class SourceTypeConnection(relay.Connection):
+    class Meta:
+        node = SourceTypeType
 
 
 class SourceType(DjangoObjectType):
@@ -44,6 +57,12 @@ class SourceType(DjangoObjectType):
             "balance",
             "amount_available_for_refund",
         )
+        interfaces = (relay.Node,)
+
+
+class SourceConnection(relay.Connection):
+    class Meta:
+        node = SourceType
 
 
 class BankcardType(DjangoObjectType):
@@ -59,61 +78,44 @@ class BankcardType(DjangoObjectType):
             "partner_reference",
             "obfuscated_number",
         )
+        interfaces = (relay.Node,)
+
+
+class BankcardConnection(relay.Connection):
+    class Meta:
+        node = BankcardType
 
 
 # Queries
 class PaymentQuery(graphene.ObjectType):
-    transactions = graphene.List(TransactionType)
-    transaction = graphene.Field(TransactionType, id=graphene.ID(required=True))
+    transactions = relay.ConnectionField(TransactionConnection)
+    transaction = relay.Node.Field(TransactionType)
 
-    sources = graphene.List(SourceType)
-    source = graphene.Field(SourceType, id=graphene.ID(required=True))
+    sources = relay.ConnectionField(SourceConnection)
+    source = relay.Node.Field(SourceType)
 
-    source_types = graphene.List(SourceTypeType)
-    source_type = graphene.Field(SourceTypeType, id=graphene.ID(required=True))
+    source_types = relay.ConnectionField(SourceTypeConnection)
+    source_type = relay.Node.Field(SourceTypeType)
 
-    bankcards = graphene.List(BankcardType)
-    bankcard = graphene.Field(BankcardType, id=graphene.ID(required=True))
+    bankcards = relay.ConnectionField(BankcardConnection)
+    bankcard = relay.Node.Field(BankcardType)
 
-    def resolve_transactions(self, info):
+    def resolve_transactions(self, info, **kwargs):
         return Transaction.objects.all()
 
-    def resolve_transaction(self, info, id):
-        try:
-            return Transaction.objects.get(id=id)
-        except Transaction.DoesNotExist:
-            return None
-
-    def resolve_sources(self, info):
+    def resolve_sources(self, info, **kwargs):
         return Source.objects.all()
 
-    def resolve_source(self, info, id):
-        try:
-            return Source.objects.get(id=id)
-        except Source.DoesNotExist:
-            return None
-
-    def resolve_source_types(self, info):
+    def resolve_source_types(self, info, **kwargs):
         return SourceType.objects.all()
 
-    def resolve_source_type(self, info, id):
-        try:
-            return SourceType.objects.get(id=id)
-        except SourceType.DoesNotExist:
-            return None
-
-    def resolve_bankcards(self, info):
+    def resolve_bankcards(self, info, **kwargs):
         return Bankcard.objects.all()
 
-    def resolve_bankcard(self, info, id):
-        try:
-            return Bankcard.objects.get(id=id)
-        except Bankcard.DoesNotExist:
-            return None
 
 # Mutations for Payment
-class CreateTransactionMutation(graphene.Mutation):
-    class Arguments:
+class CreateTransactionMutation(relay.ClientIDMutation):
+    class Input:
         source_id = graphene.ID(required=True)
         txn_type = graphene.String(required=True)
         amount = graphene.Float(required=True)
@@ -122,7 +124,8 @@ class CreateTransactionMutation(graphene.Mutation):
 
     transaction = graphene.Field(TransactionType)
 
-    def mutate(self, info, source_id, txn_type, amount, reference=None, status=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, source_id, txn_type, amount, reference=None, status=None):
         try:
             source = Source.objects.get(id=source_id)
         except Source.DoesNotExist:
@@ -138,8 +141,8 @@ class CreateTransactionMutation(graphene.Mutation):
         return CreateTransactionMutation(transaction=transaction)
 
 
-class CreateSourceMutation(graphene.Mutation):
-    class Arguments:
+class CreateSourceMutation(relay.ClientIDMutation):
+    class Input:
         order_id = graphene.ID(required=True)
         source_type_id = graphene.ID(required=True)
         currency = graphene.String(required=True)
@@ -149,16 +152,8 @@ class CreateSourceMutation(graphene.Mutation):
 
     source = graphene.Field(SourceType)
 
-    def mutate(
-        self,
-        info,
-        order_id,
-        source_type_id,
-        currency,
-        amount_allocated,
-        reference=None,
-        label=None,
-    ):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, order_id, source_type_id, currency, amount_allocated, reference=None, label=None):
         try:
             from oscar.apps.order.models import Order
 
@@ -180,8 +175,8 @@ class CreateSourceMutation(graphene.Mutation):
         return CreateSourceMutation(source=source)
 
 
-class CreateBankcardMutation(graphene.Mutation):
-    class Arguments:
+class CreateBankcardMutation(relay.ClientIDMutation):
+    class Input:
         user_id = graphene.ID(required=True)
         card_type = graphene.String(required=True)
         name = graphene.String(required=False)
@@ -191,7 +186,8 @@ class CreateBankcardMutation(graphene.Mutation):
 
     bankcard = graphene.Field(BankcardType)
 
-    def mutate(self, info, user_id, card_type, name, number, expiry_date, partner_reference=None):
+    @classmethod
+    def mutate_and_get_payload(cls, root, info, user_id, card_type, name, number, expiry_date, partner_reference=None):
         try:
             from django.contrib.auth import get_user_model
 
@@ -210,6 +206,7 @@ class CreateBankcardMutation(graphene.Mutation):
         )
         return CreateBankcardMutation(bankcard=bankcard)
 
+
 # Mutations
 class PaymentMutation(graphene.ObjectType):
     create_transaction = CreateTransactionMutation.Field()
@@ -220,3 +217,4 @@ class PaymentMutation(graphene.ObjectType):
 # Schema
 class PaymentSchema(graphene.Schema):
     query = PaymentQuery
+    mutation = PaymentMutation
