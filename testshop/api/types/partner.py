@@ -1,29 +1,12 @@
 from graphene import relay
 from graphene_django import DjangoObjectType
 import graphene
+from graphene_django.fields import DjangoConnectionField
+from oscar.apps.catalogue.models import Product
 from oscar.apps.partner.models import Partner, StockRecord, StockAlert
-
+from .catalogue import ProductType
 
 # GraphQL Types
-class PartnerType(DjangoObjectType):
-    class Meta:
-        model = Partner
-        fields = (
-            "id",
-            "name",
-            "code",
-            "users",
-            "display_name",
-            "primary_address",
-        )
-        interfaces = (relay.Node,)
-
-
-class PartnerConnection(relay.Connection):
-    class Meta:
-        node = PartnerType
-
-
 class StockRecordType(DjangoObjectType):
     class Meta:
         model = StockRecord
@@ -41,6 +24,27 @@ class StockRecordType(DjangoObjectType):
             "is_below_threshold",
         )
         interfaces = (relay.Node,)
+
+class PartnerType(DjangoObjectType):
+    stockrecords = DjangoConnectionField(StockRecordType)
+
+    class Meta:
+        model = Partner
+        fields = (
+            "id",
+            "name",
+            "code",
+            "users",
+            "display_name",
+            "primary_address",
+            )
+        interfaces = (relay.Node,)
+
+
+class PartnerConnection(relay.Connection):
+    class Meta:
+        node = PartnerType
+
 
 
 class StockRecordConnection(relay.Connection):
